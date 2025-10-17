@@ -22,13 +22,9 @@ static inline double elapsed_sec(struct timespec a, struct timespec b) {
     return (b.tv_sec - a.tv_sec) + (b.tv_nsec - a.tv_nsec) * 1e-9;
 }
 
-static void chomp_newline(char *s) {
-    if (!s) return;
-    size_t len = strlen(s);
-    if (len && s[len - 1] == '\n') s[len - 1] = '\0';
-}
-
+// Receiverè¦å…ˆæ‰“é–‹senderé–‹çš„semaphore
 static sem_t* open_semaphore_with_retry(const char *name, int max_retry, int retry_ms) {
+    // æ²’é–‹åˆ°å°±ç­‰ä¸€ä¸‹å†è©¦ï¼Œæœ€å¤šè©¦max_retryæ¬¡ï¼Œæ¯æ¬¡é–“éš”retry_msæ¯«ç§’
     for (int i = 0; i <= max_retry; ++i) {
         sem_t *h = sem_open(name, 0);
         if (h != SEM_FAILED) return h;
@@ -36,15 +32,19 @@ static sem_t* open_semaphore_with_retry(const char *name, int max_retry, int ret
             perror("sem_open");
             break;
         }
+        // é‚„æ²’è¢«é–‹å¥½å°±ç­‰ä¸€ä¸‹å†è©¦ -> sleep
         usleep(retry_ms * 1000);
     }
+    // å…¨éƒ¨è©¦å®Œé‚„å¤±æ•—å›å‚³SEM_FAILED
     return SEM_FAILED;
 }
 
 static void receive(message_t *msg, mailbox_t *mb)
 {
-    // µ¥ sender µo¥X°T¸¹¡]sem_rx¡^
+    // ç­‰senderï¼ˆsem_rxï¼‰
+    // S--
     if (sem_wait(sem_rx) == -1) {
+        // System call error
         perror("sem_wait(sem_rx)");
         exit(1);
     }
@@ -52,13 +52,15 @@ static void receive(message_t *msg, mailbox_t *mb)
     clock_gettime(CLOCK_MONOTONIC, &t0);
 
     if (mb->flag == MSG_PASSING) {
+        // ssize_t msgrcv(int msqid, void *msgp, size_t msgsz, long msgtyp, int msgflg);
         if (msgrcv(mb->storage.msqid, msg, sizeof(msg->msgText), 0, 0) == -1) {
             perror("msgrcv");
             exit(1);
         }
     }
     else if (mb->flag == SHARED_MEM) {
-        // --- ¦@¨É°O¾ĞÅé¼Ò¦¡ ---
+        // mb->storage.shm_addr->å…±äº«è¨˜æ†¶é«”çš„èµ·å§‹ä½å€
+        // æŠŠé‚£å€‹å€å¡Šcopyé€² msg->msgText
         strncpy(msg->msgText, mb->storage.shm_addr, sizeof(msg->msgText) - 1);
         msg->msgText[sizeof(msg->msgText) - 1] = '\0';
     }
@@ -70,11 +72,7 @@ static void receive(message_t *msg, mailbox_t *mb)
     clock_gettime(CLOCK_MONOTONIC, &t1);
     total_sec += elapsed_sec(t0, t1);
 
-    // msg->msgText[strcspn(msg->msgText, "\n")] = '\0';
-    // printf("Receiving message: %s\n", msg->msgText);
-    // fflush(NULL);
-
-    // ³qª¾ sender ¥i¥H°e¤U¤@«h
+    // å‘Šè¨´senderå¯ä»¥å‚³ä¸‹ä¸€å‰‡
     if (sem_post(sem_tx) == -1) {
         perror("sem_post(sem_tx)");
         exit(1);
@@ -101,15 +99,13 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // --- ¶}±Ò sender «Ø¥ßªº semaphores ---
     sem_tx = open_semaphore_with_retry(SEM_TX, 50, 20);
     sem_rx = open_semaphore_with_retry(SEM_RX, 50, 20);
     if (sem_tx == SEM_FAILED || sem_rx == SEM_FAILED) {
-        fprintf(stderr, "sem_open failed ¡X make sure you launched ./sender first.\n");
+        fprintf(stderr, "sem_open failed â€” make sure you launched ./sender first.\n");
         return 1;
     }
 
-    // --- ®Ú¾Ú¼Ò¦¡³s±µ IPC ---
     if (box.flag == MSG_PASSING) {
         int qid = msgget(MQ_KEY, 0666 | IPC_CREAT);
         if (qid == -1) {
@@ -131,30 +127,29 @@ int main(int argc, char *argv[])
         }
     }
 
-    // --- ¶}©l±µ¦¬ ---
+    // é–‹å§‹receive
     size_t n_lines = 0;
     message_t msg;
 
     while (1) {
         receive(&msg, &box);
 
-        // ¥h±¼´«¦æ
+        // å»æ‰æ›è¡Œ
         msg.msgText[strcspn(msg.msgText, "\n")] = '\0';
 
-        // ? ¥ı§PÂ_ EOF¡]¬O´N¸õ¥X¡B¤£¦L¡^
+        // åˆ¤æ–· EOFï¼ˆæ˜¯å°±è·³å‡ºã€ä¸å°ï¼‰
         if (strcmp(msg.msgText, "EOF") == 0) break;
 
-        // ? ¥u¦³«D EOF ¤~¦L
+        // åªæœ‰é EOF æ‰å°
         printf("Receiving message: %s\n", msg.msgText);
         n_lines++;
     }
 
 
-    // printf("[Receiver] lines(excl. EOF)=%zu\n", n_lines);
     printf("Sender exit!\n");
     printf("total IPC time(s) taken in receiving msg =%.6f\n", total_sec);
 
-    // --- ²M²z ---
+    // --- æ¸…ç† ---
     if (box.flag == SHARED_MEM) {
         shmdt(box.storage.shm_addr);
         int shmid = shmget(SHM_KEY, sizeof(message_t), 0666);
