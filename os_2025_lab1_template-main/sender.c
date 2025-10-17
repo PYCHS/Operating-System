@@ -21,11 +21,13 @@ static inline double elapsed_sec(struct timespec a, struct timespec b) {
     return (b.tv_sec - a.tv_sec) + (b.tv_nsec - a.tv_nsec) * 1e-9;
 }
 
-/* ? �۰ʲM���ª� IPC �ݭ� */
+/* 清除舊的 IPC 殘值 */
 static void cleanup_ipc() {
+    // 舊的 semaphore 被 sem_unlink() 移除。
     sem_unlink(SEM_TX);
     sem_unlink(SEM_RX);
 
+    // 舊的 message queue / shared memory 用 msgctl / shmctl 移除。
     int qid = msgget(MQ_KEY, 0666);
     if (qid != -1) {
         msgctl(qid, IPC_RMID, NULL);
@@ -38,8 +40,11 @@ static void cleanup_ipc() {
         printf("[Cleanup] Removed old shared memory (key=0x%x)\n", SHM_KEY);
     }
 
+    // 最後 unlink 保險地刪掉 /dev/shm 下殘留的 semaphore 檔案。
     unlink("/dev/shm/sem.tx_sem");
     unlink("/dev/shm/sem.rx_sem");
+
+    // 因為 IPC 是系統級資源，如果沒清掉會影響下次建立。
 }
 
 void send(message_t msg, mailbox_t *mb)
@@ -54,13 +59,14 @@ void send(message_t msg, mailbox_t *mb)
         }
     } else if (mb->flag == SHARED_MEM) {
         strncpy(mb->storage.shm_addr, msg.msgText, sizeof(msg.msgText) - 1);
+        // 確保記憶體裡的字串有安全的結尾符號。
         mb->storage.shm_addr[sizeof(msg.msgText) - 1] = '\0';
     }
 
     clock_gettime(CLOCK_MONOTONIC, &t1);
     total_sec += elapsed_sec(t0, t1);
 
-    // ? �u�b���O EOF �ɦL�X�T��
+    // 只在不是 EOF 時印出訊息
     if (strcmp(msg.msgText, "EOF") != 0 && strcmp(msg.msgText, "EOF\n") != 0) {
         printf("Sending message: %s", msg.msgText);
     }
@@ -98,6 +104,7 @@ int main(int argc, char *argv[])
     }
 
     if (box.flag == MSG_PASSING) {
+        // 建立或取得一個message queue
         int qid = msgget(MQ_KEY, 0666 | IPC_CREAT);
         if (qid == -1) {
             perror("msgget");
@@ -105,11 +112,13 @@ int main(int argc, char *argv[])
         }
         box.storage.msqid = qid;
     } else if (box.flag == SHARED_MEM) {
+        // 建立一塊共享記憶體，大小跟一個 message 結構一樣。
         int shmid = shmget(SHM_KEY, sizeof(message_t), 0666 | IPC_CREAT);
         if (shmid == -1) {
             perror("shmget");
             return 1;
         }
+        // 把這塊共享記憶體「附加（attach）」到目前這個 process 的位址空間
         box.storage.shm_addr = (char *)shmat(shmid, NULL, 0);
         if (box.storage.shm_addr == (char *)-1) {
             perror("shmat");
@@ -125,6 +134,7 @@ int main(int argc, char *argv[])
 
     message_t msg;
     size_t n_lines = 0;
+    
     while (fgets(msg.msgText, sizeof(msg.msgText), fp)) {
         msg.mType = 1;
         send(msg, &box);
