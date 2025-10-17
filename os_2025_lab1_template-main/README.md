@@ -6,6 +6,8 @@ This project is part of the Operating System course (Lab 1) and focuses on imple
 The goal of this lab is to design and implement two programs — `sender` and `receiver` — that communicate through IPC mechanisms.  
 Each program uses wrapper functions to simplify the use of system calls for message exchange and synchronization.
 
+""The demo section focus on the usage and the details of semaphore.""
+
 ### Features
 - Implementation of **two separate processes**: `sender` and `receiver`
 - Use of **System V IPC** (message queues / shared memory / semaphores)
