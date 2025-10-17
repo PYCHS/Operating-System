@@ -28,25 +28,17 @@ make
 Step 2: Run two terminals
 Terminal 1 (Receiver):
 
-bash
-複製程式碼
 ./receiver
 Terminal 2 (Sender):
 
-bash
-複製程式碼
 ./sender
 🧩 Example Output
 Receiver Terminal:
 
-csharp
-複製程式碼
 [Receiver] Waiting for message...
 [Receiver] Message received: "Hello from sender!"
 Sender Terminal:
 
-csharp
-複製程式碼
 [Sender] Sending message: "Hello from sender!"
 [Sender] Message successfully sent.
 🧰 Development Environment
@@ -61,7 +53,7 @@ Build Tool: Make
 🧑‍💻 Author
 Eason Peng (彭以呈)
 Department of Computer Science, National Cheng Kung University (NCKU)
-GitHub: @your-github-username
+GitHub: @PYCHS
 
 📚 Notes
 This lab serves as an introduction to IPC concepts in Linux, helping students understand:
