@@ -53,8 +53,34 @@ int help(char **args)
 	return 1;
 }
 // ======================= requirement 2.1 =======================
+int count_length_args(char **args) {
+	int count = 0;
+	while (args[count] != NULL) {
+		count++;
+	}
+	return count;
+}
 int cd(char **args)
-{
+{ // chdir
+	// args[0] == cd
+	// args[1] == the destination path
+	// first check if args[1]==NULL, then if it's legal path
+	int length_args = count_length_args(args);
+
+	if (length_args < 2) {
+		printf("args has length less than 2, wrong usage\n");
+		return -1; // error
+	}
+	if (length_args > 2) {
+		printf("args has length larger than 2, wrong usage\n");
+		return -1; // error
+	}
+
+	int chdir_return = chdir(args[1]);
+	if (chdir_return != 0) {
+		printf("error path"); 
+		return -1;
+	}
 	return 1;
 }
 // ===============================================================
