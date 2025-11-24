@@ -20,7 +20,38 @@
  * 
  */
 void redirection(struct cmd_node *p){
-	
+	int fd;
+	// <
+	// stdin(fd[0]) point to target file
+	if (p->in_file != NULL) {
+		fd = open(p->in_file, O_RDONLY);
+		// OS gives you a new file descriptor, points to the in_file
+		if (fd < 0) {
+			perror("open input file failed!");
+			exit(EXIT_FAILURE);
+		}
+		if (dup2(fd, STDIN_FILENO) < 0) {
+			perror("dup2 stdin failed!");
+			close(fd);
+			exit(EXIT_FAILURE);
+		}
+		close(fd);
+	}
+	// >
+	// stdout(fd[1]) point to target file
+	if (p->out_file != NULL) {
+		fd = open(p->out_file, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+		if (fd < 0) {
+			perror("open output file failed!");
+			exit(EXIT_FAILURE);
+		}
+		if (dup2(fd, STDOUT_FILENO) < 0) {
+			perror("dup2 output file failed!");
+			close(fd);
+			exit(EXIT_FAILURE);
+		}
+		close(fd);
+	}
 }
 // ===============================================================
 
@@ -37,6 +68,26 @@ void redirection(struct cmd_node *p){
  */
 int spawn_proc(struct cmd_node *p)
 {
+	// the external commands will go into this section
+	pid_t pid = fork();
+	if (pid < 0) {
+		// pid < 0 -> error
+		perror("fork failed!");
+		return -1;
+	} else if (pid == 0) {
+		// child process
+		execvp(p->args[0], p->args);
+		perror("execvp() failed!");
+		exit(EXIT_FAILURE);
+	} else {
+		// parent process
+		int status;
+		wait(&status);
+		if (wait(&status) < 0) {
+			perror("wait error!");
+			return -1;
+		}
+	}
   	return 1;
 }
 // ===============================================================
