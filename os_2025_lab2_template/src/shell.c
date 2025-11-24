@@ -52,6 +52,21 @@ void redirection(struct cmd_node *p){
 		}
 		close(fd);
 	}
+	// for 2.4, we need redirection to support pipe()
+	if (p->in != 0 && p->in != -1) {
+		if (dup2(p->in, STDIN_FILENO) < 0) {
+			perror("dup2 pipe in");
+			exit(EXIT_FAILURE);
+		}
+		close(p->in);
+	}
+	if (p->out != 1 && p->out != -1) {
+		if (dup2(p->out, STDOUT_FILENO) < 0) {
+			perror("dup2 pipe out");
+			exit(EXIT_FAILURE);
+		}
+		close(p->out);
+	}
 }
 // ===============================================================
 
@@ -102,6 +117,8 @@ int spawn_proc(struct cmd_node *p)
  * @return int
  * Return execution status 
  */
+
+// Each command is independent, but the pipe connects them like a data stream.
 int fork_cmd_node(struct cmd *cmd)
 {
 	return 1;
