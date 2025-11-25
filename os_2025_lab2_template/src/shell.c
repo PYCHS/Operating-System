@@ -147,6 +147,9 @@ int fork_cmd_node(struct cmd *cmd)
 			next_read_fd = pipefd[0]; // read side for the next command
 			write_fd = pipefd[1]; // write end of the pipe, 1 if last command
 		}
+		// tell the node which fd to use
+		cur->in = prev_read_fd;
+		cur->out = write_fd;
 		// Use the previous defined function to execute the command
 		if (spawn_proc(cur) < 0) {
 			return -1;
