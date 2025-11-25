@@ -92,13 +92,13 @@ int spawn_proc(struct cmd_node *p)
 		return -1;
 	} else if (pid == 0) {
 		// child process
+		redirection(p);
 		execvp(p->args[0], p->args);
 		perror("execvp() failed!");
 		exit(EXIT_FAILURE);
 	} else {
 		// parent process
 		int status;
-		wait(&status);
 		if (wait(&status) < 0) {
 			perror("wait error!");
 			return -1;
