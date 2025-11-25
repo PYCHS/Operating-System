@@ -53,16 +53,17 @@ void redirection(struct cmd_node *p){
 		close(fd);
 	}
 	// for 2.4, we need redirection to support pipe()
+	// if there exists a pipe, the in|out of the node would not be 0|1
 	if (p->in != 0 && p->in != -1) {
 		if (dup2(p->in, STDIN_FILENO) < 0) {
-			perror("dup2 pipe in");
+			perror("dup2 pipe in error!");
 			exit(EXIT_FAILURE);
 		}
 		close(p->in);
 	}
 	if (p->out != 1 && p->out != -1) {
 		if (dup2(p->out, STDOUT_FILENO) < 0) {
-			perror("dup2 pipe out");
+			perror("dup2 pipe out error!");
 			exit(EXIT_FAILURE);
 		}
 		close(p->out);
@@ -121,6 +122,51 @@ int spawn_proc(struct cmd_node *p)
 // Each command is independent, but the pipe connects them like a data stream.
 int fork_cmd_node(struct cmd *cmd)
 {
+	struct cmd_node *cur = cmd->head;
+	int number_of_pipes = cmd->pipe_num;
+
+	if(cur == NULL || number_of_pipes <=0) {
+		perror("no pipes created");
+		return -1;
+	}
+
+	int prev_read_fd = 0; // default would be stdin
+	int pipefd[2];
+
+	for (int i=0 ; i<number_of_pipes && cur!=NULL ; ++i) {
+		// iterate through all the commands(nodes)
+		int write_fd = 1; // default would be stdout
+		int next_read_fd = -1; // read end for the next command
+
+		// create a new pipe if this is not the last command
+		if (i<number_of_pipes-1) {
+			if (pipe(pipefd) < 0) {
+				perror("pipe error!");
+				return -1;
+			}
+			next_read_fd = pipefd[0]; // read side for the next command
+			write_fd = pipefd[1]; // write end of the pipe, 1 if last command
+		}
+		// Use the previous defined function to execute the command
+		if (spawn_proc(cur) < 0) {
+			return -1;
+		}
+		// close the used pipes
+		if (write_fd != 1) {
+			close(write_fd);
+		}
+		if (prev_read_fd!=0 && prev_read_fd!= -1) {
+			close(prev_read_fd);
+		}
+		// ready for the next command 
+		prev_read_fd = next_read_fd;
+		cur = cur->next;
+	}
+
+	// After all the iterate, close the last pipe
+	if (prev_read_fd!=0 && prev_read_fd!= -1) {
+		close(prev_read_fd);
+	}
 	return 1;
 }
 // ===============================================================
