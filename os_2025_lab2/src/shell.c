@@ -98,11 +98,14 @@ int spawn_proc(struct cmd_node *p)
 		exit(EXIT_FAILURE);
 	} else {
 		// parent process
-		int status;
-		if (wait(&status) < 0) {
-			perror("wait error!");
-			return -1;
+		if (p->out == 1) {
+			int status;
+			if (wait(&status) < 0) {
+				perror("wait error!");
+				return -1;
+			}
 		}
+
 	}
   	return 1;
 }
