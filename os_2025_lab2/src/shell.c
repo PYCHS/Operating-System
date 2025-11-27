@@ -84,31 +84,28 @@ void redirection(struct cmd_node *p){
  */
 int spawn_proc(struct cmd_node *p)
 {
-	// the external commands will go into this section
-	pid_t pid = fork();
-	if (pid < 0) {
-		// pid < 0 -> error
-		perror("fork failed!");
-		return -1;
-	} else if (pid == 0) {
-		// child process
-		redirection(p);
-		execvp(p->args[0], p->args);
-		perror("execvp() failed!");
-		exit(EXIT_FAILURE);
-	} else {
-		// parent process
-		if (p->out == 1) {
-			int status;
-			if (wait(&status) < 0) {
-				perror("wait error!");
-				return -1;
-			}
-		}
-
-	}
-  	return 1;
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork failed!");
+        return -1;
+    } else if (pid == 0) {
+        redirection(p);
+        execvp(p->args[0], p->args);
+        perror("execvp() failed!");
+        exit(EXIT_FAILURE);
+    } else {
+        // Only wait if this command does not send output into a pipe
+        if (p->out == 1) {
+            int status;
+            if (wait(&status) < 0) {
+                perror("wait error!");
+                return -1;
+            }
+        }
+    }
+    return 1;
 }
+
 // ===============================================================
 
 
@@ -125,56 +122,61 @@ int spawn_proc(struct cmd_node *p)
 // Each command is independent, but the pipe connects them like a data stream.
 int fork_cmd_node(struct cmd *cmd)
 {
-	struct cmd_node *cur = cmd->head;
-	int number_of_pipes = cmd->pipe_num;
+    struct cmd_node *cur = cmd->head;
 
-	if(cur == NULL || number_of_pipes <=0) {
-		perror("no pipes created");
-		return -1;
-	}
+    if (cur == NULL) {
+        return -1;
+    }
 
-	int prev_read_fd = 0; // default would be stdin
-	int pipefd[2];
+    int prev_read_fd = 0;   // stdin for first command
+    int pipefd[2];
 
-	for (int i=0 ; i<number_of_pipes && cur!=NULL ; ++i) {
-		// iterate through all the commands(nodes)
-		int write_fd = 1; // default would be stdout
-		int next_read_fd = -1; // read end for the next command
+    while (cur != NULL) {
+        int write_fd = 1;       // default: stdout
+        int next_read_fd = -1;  // read end for next command
 
-		// create a new pipe if this is not the last command
-		if (i<number_of_pipes-1) {
-			if (pipe(pipefd) < 0) {
-				perror("pipe error!");
-				return -1;
-			}
-			next_read_fd = pipefd[0]; // read side for the next command
-			write_fd = pipefd[1]; // write end of the pipe, 1 if last command
-		}
-		// tell the node which fd to use
-		cur->in = prev_read_fd;
-		cur->out = write_fd;
-		// Use the previous defined function to execute the command
-		if (spawn_proc(cur) < 0) {
-			return -1;
-		}
-		// close the used pipes
-		if (write_fd != 1) {
-			close(write_fd);
-		}
-		if (prev_read_fd!=0 && prev_read_fd!= -1) {
-			close(prev_read_fd);
-		}
-		// ready for the next command 
-		prev_read_fd = next_read_fd;
-		cur = cur->next;
-	}
+        // If there is a next command, create a pipe
+        if (cur->next != NULL) {
+            if (pipe(pipefd) < 0) {
+                perror("pipe error!");
+                return -1;
+            }
+            next_read_fd = pipefd[0];  // read side for next command
+            write_fd     = pipefd[1];  // write side for current command
+        }
 
-	// After all the iterate, close the last pipe
-	if (prev_read_fd!=0 && prev_read_fd!= -1) {
-		close(prev_read_fd);
-	}
-	return 1;
+        // Tell this node which fds to use
+        cur->in  = prev_read_fd;
+        cur->out = write_fd;
+
+        // Run this command (child will call redirection() + execvp())
+        if (spawn_proc(cur) < 0) {
+            return -1;
+        }
+
+        // Parent: close write end we just used
+        if (write_fd != 1) {
+            close(write_fd);
+        }
+
+        // Parent: close previous read end (no longer needed)
+        if (prev_read_fd != 0 && prev_read_fd != -1) {
+            close(prev_read_fd);
+        }
+
+        // Prepare for next command
+        prev_read_fd = next_read_fd;
+        cur = cur->next;
+    }
+
+    // Safety: close last read end if still open
+    if (prev_read_fd != 0 && prev_read_fd != -1) {
+        close(prev_read_fd);
+    }
+
+    return 1;
 }
+
 // ===============================================================
 
 
@@ -196,7 +198,7 @@ void shell()
 			status = searchBuiltInCommand(temp);
 			if (status != -1){
 				int in = dup(STDIN_FILENO), out = dup(STDOUT_FILENO);
-				if( in == -1 | out == -1)
+				if( in == -1 || out == -1)
 					perror("dup");
 				redirection(temp);
 				status = execBuiltInCommand(status,temp);
