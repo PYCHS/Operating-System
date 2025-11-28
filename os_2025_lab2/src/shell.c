@@ -149,6 +149,9 @@ int fork_cmd_node(struct cmd *cmd)
         // If there is a next command, create a pipe
         if (cur->next != NULL) {
             if (pipe(pipefd) < 0) {
+				// pipe(pipefd) creates a unidirectional data channel
+				// pipefd[0] = read end
+				// pipefd [1] = write end
                 perror("pipe error!");
                 return -1;
             }
