@@ -75,7 +75,8 @@ int cd(char **args)
 		printf("args has length larger than 2, wrong usage\n");
 		return -1; // error
 	}
-
+	// chdir: change directory
+	// return 0 -> success, -1 -> failure
 	int chdir_return = chdir(args[1]);
 	if (chdir_return != 0) {
 		printf("error path"); 

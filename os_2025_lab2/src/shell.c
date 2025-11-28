@@ -24,13 +24,14 @@ void redirection(struct cmd_node *p){
 	// <
 	// stdin(fd[0]) point to target file
 	if (p->in_file != NULL) {
-		fd = open(p->in_file, O_RDONLY);
+		fd = open(p->in_file, O_RDONLY); // open() returns -1 if failed
 		// OS gives you a new file descriptor, points to the in_file
 		if (fd < 0) {
 			perror("open input file failed!");
 			exit(EXIT_FAILURE);
 		}
 		if (dup2(fd, STDIN_FILENO) < 0) {
+			// Make file descriptor STDIN_FILENO (0) point to the same open file as fd
 			perror("dup2 stdin failed!");
 			close(fd);
 			exit(EXIT_FAILURE);
@@ -89,19 +90,29 @@ int spawn_proc(struct cmd_node *p)
         perror("fork failed!");
         return -1;
     } else if (pid == 0) {
+		// the external command should have modified stdin/stdout/stderr
+		// for example: ls > out.txt
         redirection(p);
         execvp(p->args[0], p->args);
         perror("execvp() failed!");
         exit(EXIT_FAILURE);
     } else {
         // Only wait if this command does not send output into a pipe
+		// If this command is sending output to a pipe, 
+		// p->out will be set to the write end of that pipe (some fd > 1).
+		// example: ls | grep txt
+		// Let both run at the same time or else it'll be Serializing the pipeline
         if (p->out == 1) {
+			// go straight to the terminal
             int status;
             if (wait(&status) < 0) {
                 perror("wait error!");
                 return -1;
             }
         }
+		// If this is a normal command (no pipe) ¡÷ wait() now.
+		// If this command is part of a pipe ¡÷ don¡¦t wait() here; 
+		// it will be handled as part of the whole pipeline.
     }
     return 1;
 }
