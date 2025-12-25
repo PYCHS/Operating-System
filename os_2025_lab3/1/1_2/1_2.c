@@ -17,7 +17,8 @@ void spin_lock() {
         "loop:\n\t"
         "mov $0, %%eax\n\t"
         /*YOUR CODE HERE*/
-
+        "lock xchg %%eax, %[lock]\n\t"  // atomic: eax <-> lock (eax gets old lock)
+        "sub $1, %%eax\n\t"             // old==0 -> -1 (SF=1) spin; old==1 -> 0 (SF=0) exit
         /****************/
         "js loop\n\t"
         :
@@ -30,7 +31,7 @@ void spin_unlock() {
     asm volatile(
         "mov $1, %%eax\n\t"
         /*YOUR CODE HERE*/
-
+        "lock xchg %%eax, %[lock]\n\t"
         /****************/
         :
         : [lock] "m" (lock)
