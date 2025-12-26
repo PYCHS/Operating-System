@@ -102,6 +102,7 @@ static ssize_t Myread(struct file *fileptr, char __user *ubuf, size_t buffer_len
         return -EFAULT;
 
     *offset += out_len;
+    buf[STATE_BASE + idx * MSG_SIZE] = '\0';
     return (ssize_t)out_len;
 
     /****************/
