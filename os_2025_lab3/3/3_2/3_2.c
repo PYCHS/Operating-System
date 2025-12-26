@@ -73,7 +73,11 @@ void *thread1(void *arg){
 
     /*YOUR CODE HERE*/
     /* Hint: Write data into proc file.*/
-
+    int fd = open("/proc/Mythread_info", O_WRONLY);
+    if (fd >= 0) {
+        write(fd, data, strlen(data));
+        close(fd);
+    }
     /****************/ 
 
     char buffer[50]; 
@@ -97,7 +101,11 @@ void *thread2(void *arg){
     
     /*YOUR CODE HERE*/
     /* Hint: Write data into proc file.*/
-
+    int fd = open("/proc/Mythread_info", O_WRONLY);
+    if (fd >= 0) {
+        write(fd, data, strlen(data));
+        close(fd);
+    }
     /****************/   
 
     char buffer[50]; 
