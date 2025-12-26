@@ -25,6 +25,7 @@ static ssize_t Myread(struct file *fileptr, char __user *ubuf, size_t buffer_len
     len += scnprintf(buf+len,BUFSIZE-len, "PID: %d\n", current->pid);
     // iterate all threads in the current process (thread group)
     for_each_thread(current, task) {
+        if (task->pid == current->pid) continue;
         // thread id: task->pid
         len += scnprintf(buf + len, BUFSIZE - len,
                      "PID: %d, TID: %d, Priority: %d, State: %ld\n",
