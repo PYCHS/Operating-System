@@ -73,10 +73,15 @@ void *thread1(void *arg){
 
     /*YOUR CODE HERE*/
     /* Hint: Write data into proc file.*/
-    int fd = open("/proc/Mythread_info", O_WRONLY);
-    if (fd >= 0) {
-        write(fd, data, strlen(data));
-        close(fd);
+    {
+        FILE *wf = fopen("/proc/Mythread_info", "w");
+        if (wf) {
+            fprintf(wf, "%s", data);
+            fclose(wf);
+        }
+
+        /* Reset proc read position so fgets can read from start */
+        if (fptr4) fseek(fptr4, 0, SEEK_SET);
     }
     /****************/ 
 
@@ -101,10 +106,14 @@ void *thread2(void *arg){
     
     /*YOUR CODE HERE*/
     /* Hint: Write data into proc file.*/
-    int fd = open("/proc/Mythread_info", O_WRONLY);
-    if (fd >= 0) {
-        write(fd, data, strlen(data));
-        close(fd);
+    {
+        FILE *wf = fopen("/proc/Mythread_info", "w");
+        if (wf) {
+            fprintf(wf, "%s", data);
+            fclose(wf);
+        }
+
+        if (fptr5) fseek(fptr5, 0, SEEK_SET);
     }
     /****************/   
 
