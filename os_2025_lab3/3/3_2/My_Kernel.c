@@ -3,111 +3,115 @@
 #include <linux/init.h>
 #include <linux/printk.h>
 #include <linux/proc_fs.h>
+#include <linux/uaccess.h>
+#include <linux/mutex.h>
 #include <asm/current.h>
-
 #define procfs_name "Mythread_info"
 #define BUFSIZE  1024
-char buf[BUFSIZE]; //kernel buffer
-
-static ssize_t Mywrite(struct file *fileptr, const char __user *ubuf, size_t buffer_len, loff_t *offset){
-    /*Your code here*/
-
-    /* Two-slot storage (thread slot = current->pid & 1) */
-    #define MSG_SIZE 64
-    static char msgbuf[2][MSG_SIZE];
-    static pid_t pidbuf[2];
-    static pid_t tidbuf[2];
-    static u64   timebuf_ms[2];
-
+#define MSG_SIZE    64
+static char  g_msg[2][MSG_SIZE];
+static pid_t g_pid[2];
+static pid_t g_tid[2];
+static u64   g_time_ms[2];
+static char  g_out[2][BUFSIZE];
+static DEFINE_MUTEX(g_lock);
+/* Helper: choose slot (0/1) */
+static inline int slot_idx(void)
+{
+    /* For this lab, 2 threads. Use pid parity as slot. */
+    return (int)(current->pid & 1);
+}
+static ssize_t Mywrite(struct file *fileptr,
+                       const char __user *ubuf,
+                       size_t buffer_len,
+                       loff_t *offset)
+{
     size_t len;
     int idx;
-    pid_t pid = current->tgid;  /* process id */
-    pid_t tid = current->pid;   /* thread id */
+    pid_t pid, tid;
+    u64 time_ms;
 
-    /* Follow your slide style: time in ms (rough, but OK for lab) */
-    u64 time_ms = (u64)current->utime / 100 / 1000;
+    if (!ubuf || buffer_len == 0)
+        return 0;
 
-    idx = (int)(tid & 1);
+    idx = slot_idx();
+    pid = current->tgid;  /* process id */
+    tid = current->pid;   /* thread id */
 
-    /* Bound copy length */
+    /* Slide-style time (rough): user time -> ms */
+    time_ms = (u64)current->utime / 100 / 1000;
+
     len = buffer_len;
     if (len >= MSG_SIZE) len = MSG_SIZE - 1;
 
-    /* Clear then copy from user */
-    memset(msgbuf[idx], 0, MSG_SIZE);
-    if (copy_from_user(msgbuf[idx], ubuf, len))
+    mutex_lock(&g_lock);
+
+    memset(g_msg[idx], 0, MSG_SIZE);
+    if (copy_from_user(g_msg[idx], ubuf, len)) {
+        mutex_unlock(&g_lock);
         return -EFAULT;
+    }
+    g_msg[idx][len] = '\0';
 
-    msgbuf[idx][len] = '\0';
+    g_pid[idx] = pid;
+    g_tid[idx] = tid;
+    g_time_ms[idx] = time_ms;
 
-    /* Store metadata */
-    pidbuf[idx] = pid;
-    tidbuf[idx] = tid;
-    timebuf_ms[idx] = time_ms;
+    mutex_unlock(&g_lock);
 
-    /* Return bytes consumed */
     return (ssize_t)len;
-
-    /****************/
 }
 
 
-static ssize_t Myread(struct file *fileptr, char __user *ubuf, size_t buffer_len, loff_t *offset){
-    /*Your code here*/
-
-    #define MSG_SIZE 64
-    static char msgbuf[2][MSG_SIZE];
-    static pid_t pidbuf[2];
-    static pid_t tidbuf[2];
-    static u64   timebuf_ms[2];
-
-    /* Two output buffers: one per slot */
-    static char outbuf[2][BUFSIZE];
-
+static ssize_t Myread(struct file *fileptr,
+                      char __user *ubuf,
+                      size_t buffer_len,
+                      loff_t *offset)
+{
     int idx;
-    pid_t tid;
     size_t out_len = 0;
 
-    /* EOF rule for procfs */
+    if (!ubuf)
+        return -EINVAL;
+
+    /* procfs EOF rule: only return data once per open */
     if (*offset > 0)
         return 0;
 
-    tid = current->pid;
-    idx = (int)(tid & 1);
+    idx = slot_idx();
 
-    /* If nothing written yet for this slot, return EOF */
-    msgbuf[idx][MSG_SIZE - 1] = '\0';
-    if (msgbuf[idx][0] == '\0')
+    mutex_lock(&g_lock);
+
+    /* If nothing written for this slot yet, EOF */
+    if (g_msg[idx][0] == '\0') {
+        mutex_unlock(&g_lock);
         return 0;
+    }
 
-    /* Build output into per-slot out buffer (prevents smash) */
-    memset(outbuf[idx], 0, BUFSIZE);
+    /* Build output into per-slot output buffer */
+    memset(g_out[idx], 0, BUFSIZE);
 
-    out_len += scnprintf(outbuf[idx] + out_len, BUFSIZE - out_len, "%s\n", msgbuf[idx]);
-    out_len += scnprintf(outbuf[idx] + out_len, BUFSIZE - out_len,
+    out_len += scnprintf(g_out[idx] + out_len, BUFSIZE - out_len,
+                         "%s\n", g_msg[idx]);
+
+    out_len += scnprintf(g_out[idx] + out_len, BUFSIZE - out_len,
                          "PID: %d, TID: %d, time: %llu\n",
-                         pidbuf[idx], tidbuf[idx],
-                         (unsigned long long)timebuf_ms[idx]);
+                         g_pid[idx], g_tid[idx],
+                         (unsigned long long)g_time_ms[idx]);
 
-    /* Respect user buffer length */
+    mutex_unlock(&g_lock);
+
+    /* respect user buffer size */
     if (out_len > buffer_len)
         out_len = buffer_len;
 
-    if (copy_to_user(ubuf, outbuf[idx], out_len))
+    if (copy_to_user(ubuf, g_out[idx], out_len))
         return -EFAULT;
 
     *offset += out_len;
-
-    /*
-     * Optional but recommended:
-     * clear message after one successful read so user-space fgets loop ends cleanly
-     */
-    msgbuf[idx][0] = '\0';
-
     return (ssize_t)out_len;
-
-    /****************/
 }
+
 
 static struct proc_ops Myops = {
     .proc_read = Myread,
