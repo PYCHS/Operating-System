@@ -17,7 +17,32 @@ static ssize_t Mywrite(struct file *fileptr, const char __user *ubuf, size_t buf
 
 static ssize_t Myread(struct file *fileptr, char __user *ubuf, size_t buffer_len, loff_t *offset){
     /*Your code here*/
+    int len = 0;
+    struct task_struct *task;
+    // /proc only output once, if user reads again (offset > 0), return 0
+    if (*offset > 0) return 0;
+    // build output into kernel buffer
+    len += scnprintf(buf+len,BUFSIZE-len, "PID: %d\n", current->pid);
+    // iterate all threads in the current process (thread group)
+    for_each_thread(current, task) {
+        // thread id: task->pid
+        len += scnprintf(buf + len, BUFSIZE - len,
+                     "PID: %d, TID: %d, Priority: %d, State: %ld\n",
+                     current->pid,
+                     task->pid,
+                     task->prio,
+                     (long)task->__state);
+    }
+    /* Copy to user buffer */
+    if (copy_to_user(ubuf, buf, len))
+        return -EFAULT;
 
+    /* Advance offset so next read returns EOF */
+    *offset += len;
+
+    /* Return how many bytes we provided */
+    return len;
+        
     /****************/
 }
 
