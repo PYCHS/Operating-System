@@ -71,19 +71,19 @@ void *thread1(void *arg){
     }
 #endif
 
-    /*YOUR CODE HERE*/
+/*YOUR CODE HERE*/
     /* Hint: Write data into proc file.*/
-    {
-        FILE *wf = fopen("/proc/Mythread_info", "w");
-        if (wf) {
-            fprintf(wf, "%s", data);
-            fclose(wf);
-        }
-
-        /* Reset proc read position so fgets can read from start */
-        if (fptr4) fseek(fptr4, 0, SEEK_SET);
+    
+    // Open the proc file strictly for writing
+    FILE *write_ptr = fopen("/proc/Mythread_info", "w");
+    if (write_ptr != NULL) {
+        // Write the 'data' string ("Thread 1 says hello!") to the kernel
+        // This triggers 'Mywrite' in kernel.c, appending PID/TID info
+        fprintf(write_ptr, "%s", data);
+        fclose(write_ptr);
     }
-    /****************/ 
+    
+    /****************/
 
     char buffer[50]; 
     while (fgets(buffer, sizeof(buffer), fptr4) != NULL){
@@ -104,18 +104,18 @@ void *thread2(void *arg){
         }
     }
     
-    /*YOUR CODE HERE*/
+/*YOUR CODE HERE*/
     /* Hint: Write data into proc file.*/
-    {
-        FILE *wf = fopen("/proc/Mythread_info", "w");
-        if (wf) {
-            fprintf(wf, "%s", data);
-            fclose(wf);
-        }
 
-        if (fptr5) fseek(fptr5, 0, SEEK_SET);
+    // Open the proc file strictly for writing
+    FILE *write_ptr = fopen("/proc/Mythread_info", "w");
+    if (write_ptr != NULL) {
+        // Write the 'data' string ("Thread 2 says hello!") to the kernel
+        fprintf(write_ptr, "%s", data);
+        fclose(write_ptr);
     }
-    /****************/   
+
+    /****************/
 
     char buffer[50]; 
     while (fgets(buffer, sizeof(buffer), fptr5) != NULL){
