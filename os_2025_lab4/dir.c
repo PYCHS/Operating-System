@@ -9,6 +9,7 @@
  * This is called when the VFS needs to find an inode for a given filename
  * (e.g., when you type "ls" or "open").
  */
+// read data block, for iterate all the filename, osfs_iget and d_splice_alias return
 static struct dentry *osfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
     struct osfs_sb_info *sb_info = dir->i_sb->s_fs_info;
@@ -53,6 +54,7 @@ static struct dentry *osfs_lookup(struct inode *dir, struct dentry *dentry, unsi
 /**
  * osfs_iterate - Read directory contents (for 'ls')
  */
+// dir_emit to show entries
 static int osfs_iterate(struct file *filp, struct dir_context *ctx)
 {
     struct inode *inode = file_inode(filp);
@@ -99,6 +101,7 @@ static int osfs_iterate(struct file *filp, struct dir_context *ctx)
  * * Used by osfs_create. This handles the low-level resource allocation:
  * checking bitmaps, grabbing a free inode, and setting up defaults.
  */
+// allowcate spaces
 struct inode *osfs_new_inode(const struct inode *dir, umode_t mode)
 {
     struct super_block *sb = dir->i_sb;
@@ -191,6 +194,7 @@ struct inode *osfs_new_inode(const struct inode *dir, umode_t mode)
 /**
  * osfs_add_dir_entry - Add a new file to the parent directory
  */
+// add entries into dirs
 static int osfs_add_dir_entry(struct inode *dir, uint32_t inode_no, const char *name, size_t name_len)
 {
     struct osfs_sb_info *sb_info = dir->i_sb->s_fs_info;
@@ -238,6 +242,7 @@ static int osfs_add_dir_entry(struct inode *dir, uint32_t inode_no, const char *
 /**
  * osfs_create - Entry point for creating files (e.g. 'touch')
  */
+// 1.create Inode(osfs_add_dir_entry), 2.add filename into parent dir, 3.link dentry and new inode(d_instantiate)
 static int osfs_create(struct mnt_idmap *idmap,
                        struct inode *dir,
                        struct dentry *dentry,
