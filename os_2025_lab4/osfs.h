@@ -29,6 +29,10 @@
  * Struct: osfs_sb_info
  * Description: Superblock information for the osfs filesystem.
  */
+// without bonus -> i_block == pointer to the first data block
+//               -> i_blocks == the number of blocks
+// with bonus -> i_block == Extent Start location
+//            -> i_blocks == Extent Length 
 struct osfs_sb_info {
     uint32_t magic;              // Magic number to identify the filesystem
     uint32_t block_size;         // Size of each data block
@@ -78,6 +82,7 @@ struct inode *osfs_new_inode(const struct inode *dir, umode_t mode);
 void osfs_free_data_block(struct osfs_sb_info *sb_info, uint32_t block_no);
 void osfs_destroy_inode(struct inode *inode);
 // External Operations Structures
+// function declaration of allowcating multiple continously blocks
 int osfs_alloc_extent(struct osfs_sb_info *sb_info, u32 needed, u32 *start_block);
 
 extern const struct inode_operations osfs_file_inode_operations;
